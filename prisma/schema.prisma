@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  stripeCustomerId      String?
+  subscriptionId        String?
+  subscriptionStatus    String?
+  subscriptionPlan      String?
+  subscriptionPeriodEnd DateTime?
+
+  accounts     Account[]
+  sessions     Session[]
+  oauthTokens  OAuthToken[]
+  races        Race[]
+  activityLogs ActivityLog[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model OAuthToken {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime
+  scope        String?
+  athleteId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}
+
+model Race {
+  id                  String   @id @default(cuid())
+  userId              String
+  name                String
+  date                DateTime
+  distanceType        String
+  goalFinishTime      String?
+  trainingDaysPerWeek Int      @default(4)
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingPlan  TrainingPlan?
+  raceWeekBrief RaceWeekBrief?
+}
+
+model TrainingPlan {
+  id          String    @id @default(cuid())
+  raceId      String    @unique
+  totalWeeks  Int
+  currentWeek Int       @default(1)
+  version     Int       @default(1)
+  phase       String    @default("base")
+  planData    Json
+  generatedAt DateTime  @default(now())
+  adaptedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  race  Race          @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  weeks TrainingWeek[]
+}
+
+model TrainingWeek {
+  id         String   @id @default(cuid())
+  planId     String
+  weekNumber Int
+  phase      String
+  isDeload   Boolean  @default(false)
+  totalMiles Float?
+  createdAt  DateTime @default(now())
+
+  plan     TrainingPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  workouts TrainingWorkout[]
+
+  @@unique([planId, weekNumber])
+}
+
+model TrainingWorkout {
+  id          String  @id @default(cuid())
+  weekId      String
+  dayOfWeek   Int
+  type        String
+  distance    Float?
+  duration    Int?
+  paceZoneMin String?
+  paceZoneMax String?
+  effortLevel String?
+  explanation String?
+  order       Int     @default(0)
+
+  week         TrainingWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  activityLogs ActivityLog[]
+}
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+  userId          String
+  workoutId       String?
+  externalId      String?
+  source          String
+  date            DateTime
+  type            String
+  distance        Float
+  duration        Int
+  avgPace         String?
+  avgHeartRate    Int?
+  perceivedEffort Int?
+  notes           String?
+  raw             Json?
+  createdAt       DateTime @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout TrainingWorkout? @relation(fields: [workoutId], references: [id])
+
+  @@unique([userId, externalId, source])
+}
+
+model RaceWeekBrief {
+  id               String   @id @default(cuid())
+  raceId           String   @unique
+  weather          Json?
+  courseOverview   String?
+  elevationSummary String?
+  pacingStrategy   Json?
+  fuelingPlan      Json?
+  checklist        Json?
+  pdfUrl           String?
+  generatedAt      DateTime @default(now())
+  satisfactionRating Int?
+
+  race Race @relation(fields: [raceId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+}
